@@ -12,16 +12,12 @@ from pathlib import Path
 class WeightedAutoSmooth(bpy.types.Operator):
     bl_idname = "scene.weightedsmooth"
     bl_label = "Shade Weighted Auto Smooth Shortcut"
+    bl_description = "Toggles Weighted Normals modifier and smooth shading"
 
     def execute(self, context):
         obj = bpy.context.active_object
-        if obj.type == 'MESH':
+        if obj != None and obj.type == 'MESH':
             # find if weighted normals modifier exists
-
-            print(obj.modifiers.get("WeightedNormal"))
-
-
-
             found  = False
             for md in obj.modifiers:
                 if md.type == 'WEIGHTED_NORMAL':
@@ -56,13 +52,11 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_weightedsmooth_menu)
 
 def unregister():
-    bpy.utils.unregister_class(WeightedAutoSmooth)
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_weightedsmooth_menu)
+    bpy.utils.unregister_class(WeightedAutoSmooth)
 
 
-
-
-# This allows you to run the script directly from Blender's Text editor
-# to test the add-on without having to install it.
 if __name__ == "__main__":
     register()
+
+    
