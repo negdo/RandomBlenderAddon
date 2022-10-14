@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Join addon",
+    "name": "Simple Tools and Exporting Helper",
     "blender": (3, 0, 0),
     "category": "Object",
 }
@@ -15,10 +15,10 @@ class HardJoin(bpy.types.Operator):
     bl_info = "Convert to Mesh and join selected"
     
     def execute(self, context):
-        # convert to mesh
+        # convert to mesh and join
         bpy.ops.object.convert(target='MESH')
-        # join
         bpy.ops.object.join()
+        return {"FINISHED"}
 
 
 class RemoveMaterials(bpy.types.Operator):
@@ -123,37 +123,24 @@ class Convex(bpy.types.Operator):
     # Adds geo nodes group for convex mesh
     bl_idname = "scene.convex"
     bl_label = "Convert to Convex"
+    bl_info = "Adds convex hull over every separate mesh island"
 
-
-
-
-
-
-    
     def execute(self, context):
         selected_objs = bpy.context.selected_objects
-        self.append(context)
 
-        node_group  = bpy.data.node_groups['Convex Mesh']
-
-        
         for obj in selected_objs:
             if obj.type == 'MESH':
-                md_node = None
                 obj.display_type = 'WIRE'
-
-
-                for md in obj.modifiers:    # find GeometryNodes modifier
-                    if md.type == 'NODES':
-                        md_node = md
-                        if md_node.node_group == node_group:
-                            break
                 
-                if md_node is None: # can not find GeometryNodes modifier, add new one
-                    md_node =  obj.modifiers.new(type='NODES', name='Convex Mesh')
-                    
-                md_node.node_group = node_group
+                if obj.modifiers.get("Convex Mesh") is None: # can not find GeometryNodes modifier, add new one
+                    md_node = obj.modifiers.new(type='NODES', name='Convex Mesh')
 
+                    try:
+                        md_node.node_group = bpy.data.node_groups['Convex Mesh']
+                    except:
+                        self.append(context) #append geonodes group, if cant be found
+                        md_node.node_group = bpy.data.node_groups['Convex Mesh']
+                    
         return {"FINISHED"}
 
 
@@ -182,15 +169,18 @@ class SimpleTools(bpy.types.Panel):
     bl_region_type = "UI"
     bl_label = "Simple Tools"
     bl_idname = "SCENE_PT_layout_simple_tools"
-    bl_category = "Tool"
+    bl_category = "MyTools"
 
     def draw(self, context):
         layout = self.layout
         col = layout.column()
         col.operator("scene.normals")
-        box = col.box()
-        box.label(text="Flip Object")
-        row = box.row()
+
+        split = col.split(factor=0.5)
+        col1,col2 = (split.column(),split.column())
+        col1.label(text="Flip Object")
+        row = col2.row(align=True)
+        row.use_property_split = True
         row.operator("scene.flip_x")
         row.operator("scene.flip_y")
         row.operator("scene.flip_z")
@@ -201,7 +191,7 @@ class UnrealHelper(bpy.types.Panel):
     bl_region_type = "UI"
     bl_label = "Exporting Helper"
     bl_idname = "SCENE_PT_layout_unreal_helper"
-    bl_category = "Tool"
+    bl_category = "MyTools"
 
     def draw(self, context):
         layout = self.layout
