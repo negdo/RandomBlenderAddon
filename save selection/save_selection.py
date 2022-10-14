@@ -56,12 +56,6 @@ class SaveSelectionEdit(bpy.types.Operator):
         bpy.ops.object.editmode_toggle()
         obj = bpy.context.active_object
 
-        selected_vertices = np.zeros(len(obj.data.vertices))
-
-        for i in range(len(obj.data.vertices)):
-            selected_vertices[i] = obj.data.vertices[i].select
-        
-
         #BMESH of active object
         bm = bmesh.new() 
         bm.from_mesh(obj.data)
@@ -84,11 +78,9 @@ class SaveSelectionEdit(bpy.types.Operator):
             n = bpy.context.scene['saveCounter']
 
         for i in range(len(obj.data.vertices)):
-            print(bm.verts[i][layer])
-            if selected_vertices[i]:
+            if obj.data.vertices[i].select:
                 bm.verts[i][layer] = n
         
-
         # Finish up, write the bmesh back to the mesh
         bm.to_mesh(obj.data)
         bm.free()  # free and prevent further access
