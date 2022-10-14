@@ -14,7 +14,6 @@ class SaveSelection(bpy.types.Operator):
     bl_label = "Save Selection"
     bl_description = "Temporary save selected objects"
 
-
     def execute(self, context):
         selection = bpy.context.selected_objects
         bpy.context.scene['SavedSelection'] = selection
@@ -54,22 +53,8 @@ class SaveSelectionEdit(bpy.types.Operator):
 
     def execute(self, context):
         bpy.ops.object.editmode_toggle()
-        obj = bpy.context.active_object
 
-        #BMESH of active object
-        bm = bmesh.new() 
-        bm.from_mesh(obj.data)
-        bm.verts.ensure_lookup_table()
-
-        # add new layer on vertices
-        layer = bm.verts.layers.int.get("savedSelectionCounter")
-        print(layer)
-        if layer == None:
-            print("creating new layer")
-            layer = bm.verts.layers.int.new("savedSelectionCounter")
-            bm.verts.ensure_lookup_table()
-
-        # get next number
+         # get next number
         if bpy.context.scene.get('saveCounter') == None:
             bpy.context.scene['saveCounter'] = 1
             n = 1
@@ -77,17 +62,45 @@ class SaveSelectionEdit(bpy.types.Operator):
             bpy.context.scene['saveCounter'] += 1
             n = bpy.context.scene['saveCounter']
 
-        for i in range(len(obj.data.vertices)):
-            if obj.data.vertices[i].select:
-                bm.verts[i][layer] = n
-        
-        # Finish up, write the bmesh back to the mesh
-        bm.to_mesh(obj.data)
-        bm.free()  # free and prevent further access
+        # check select mode (faces/edges/vertices)
+        select_mode = bpy.context.tool_settings.mesh_select_mode[:]
+        if select_mode[0]:
+            self.vertices(context, n)
+        elif select_mode[1]:
+            self.edges(context, n)
+        elif select_mode[2]:
+            self.faces(context, n)
 
         bpy.ops.object.editmode_toggle()
-
         return {"FINISHED"}
+
+
+    def vertices(self, context, n):
+        # For each selected object
+        selection = bpy.context.selected_objects
+        for obj in selection:    
+
+            #BMESH of active object
+            bm = bmesh.new() 
+            bm.from_mesh(obj.data)
+            bm.verts.ensure_lookup_table()
+
+            # add new layer on vertices if not exist
+            layer = bm.verts.layers.int.get("savedSelectionCounter")
+            if layer == None:
+                layer = bm.verts.layers.int.new("savedSelectionCounter")
+                bm.verts.ensure_lookup_table()
+
+            # set selected vertex layer to n
+            for i in range(len(obj.data.vertices)):
+                if obj.data.vertices[i].select:
+                    bm.verts[i][layer] = n
+            
+            # Finish up, write the bmesh back to the mesh
+            bm.to_mesh(obj.data)
+            bm.free()  # free and prevent further access
+
+        
 
 
 class RestoreSelectedEdit(bpy.types.Operator):
@@ -98,24 +111,28 @@ class RestoreSelectedEdit(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.editmode_toggle()
-        obj = bpy.context.active_object
-        selected_vertices = np.zeros(len(obj.data.vertices))
+        
+        n = bpy.context.scene['saveCounter'] # number of saved selection
 
-        #BMESH of active object
-        bm = bmesh.new() 
-        bm.from_mesh(obj.data)
-        bm.verts.ensure_lookup_table()
+        
 
-        layer = bm.verts.layers.int.get("savedSelectionCounter")
-        if layer != None:
-            print("Found stuff")
-            for i in range(len(obj.data.vertices)):
-                print(bm.verts[i][layer])
-                # if number in vertex is equal to saveCounter
-                obj.data.vertices[i].select = (bm.verts[i][layer] == bpy.context.scene['saveCounter'])
+        # For each selected object
+        selection = bpy.context.selected_objects
+        for obj in selection:    
 
-            
-        bm.free()  # free and prevent further access
+            #BMESH of active object
+            bm = bmesh.new() 
+            bm.from_mesh(obj.data)
+            bm.verts.ensure_lookup_table()
+
+            # Get data from layer
+            layer = bm.verts.layers.int.get("savedSelectionCounter")
+            if layer != None:
+                for i in range(len(obj.data.vertices)):
+                    # if number in vertex is equal to saveCounter
+                    obj.data.vertices[i].select = (bm.verts[i][layer] == n)
+
+            bm.free()  # free and prevent further access
 
         bpy.ops.object.editmode_toggle()
         return {"FINISHED"}
