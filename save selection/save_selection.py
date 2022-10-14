@@ -6,7 +6,8 @@ bl_info = {
 
 import bpy
 from bpy.utils import resource_path
-from pathlib import Path
+import bmesh
+import numpy as np
 
 class SaveSelection(bpy.types.Operator):
     bl_idname = "scene.save_selection"
@@ -53,15 +54,46 @@ class SaveSelectionEdit(bpy.types.Operator):
 
     def execute(self, context):
         bpy.ops.object.editmode_toggle()
-        bpy.ops.object.editmode_toggle()
-        selection = [v for v in bpy.context.active_object.data.vertices if v.select]
-        print(selection)
-        selected_vertices = []
-        for v in selection:
-            selected_vertices.append(v.index)
-        print(selected_vertices)
+        obj = bpy.context.active_object
 
-        bpy.context.scene['SavedSelectionEdit'] = selected_vertices
+        selected_vertices = np.zeros(len(obj.data.vertices))
+
+        for i in range(len(obj.data.vertices)):
+            selected_vertices[i] = obj.data.vertices[i].select
+        
+
+        #BMESH of active object
+        bm = bmesh.new() 
+        bm.from_mesh(obj.data)
+        bm.verts.ensure_lookup_table()
+
+        # add new layer on vertices
+        layer = bm.verts.layers.int.get("savedSelectionCounter")
+        print(layer)
+        if layer == None:
+            print("creating new layer")
+            layer = bm.verts.layers.int.new("savedSelectionCounter")
+            bm.verts.ensure_lookup_table()
+
+        # get next number
+        if bpy.context.scene.get('saveCounter') == None:
+            bpy.context.scene['saveCounter'] = 1
+            n = 1
+        else:
+            bpy.context.scene['saveCounter'] += 1
+            n = bpy.context.scene['saveCounter']
+
+        for i in range(len(obj.data.vertices)):
+            print(bm.verts[i][layer])
+            if selected_vertices[i]:
+                bm.verts[i][layer] = n
+        
+
+        # Finish up, write the bmesh back to the mesh
+        bm.to_mesh(obj.data)
+        bm.free()  # free and prevent further access
+
+        bpy.ops.object.editmode_toggle()
 
         return {"FINISHED"}
 
@@ -71,16 +103,28 @@ class RestoreSelectedEdit(bpy.types.Operator):
     bl_label = "Restore Selection"
     bl_description = "Restore temporary saved vertex/edge/face selection"
 
-
     def execute(self, context):
-        selection = list(bpy.context.scene.get('SavedSelectionEdit'))
-        print(selection)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.editmode_toggle()
+        obj = bpy.context.active_object
+        selected_vertices = np.zeros(len(obj.data.vertices))
 
-        for i in selection:
-            bpy.context.active_object.data.vertices[i].select = True
+        #BMESH of active object
+        bm = bmesh.new() 
+        bm.from_mesh(obj.data)
+        bm.verts.ensure_lookup_table()
+
+        layer = bm.verts.layers.int.get("savedSelectionCounter")
+        if layer != None:
+            print("Found stuff")
+            for i in range(len(obj.data.vertices)):
+                print(bm.verts[i][layer])
+                # if number in vertex is equal to saveCounter
+                obj.data.vertices[i].select = (bm.verts[i][layer] == bpy.context.scene['saveCounter'])
+
             
+        bm.free()  # free and prevent further access
+
         bpy.ops.object.editmode_toggle()
         return {"FINISHED"}
 
