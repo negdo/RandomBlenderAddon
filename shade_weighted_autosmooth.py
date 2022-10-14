@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "auto smooth addon",
+    "name": "Weighted auto smooth addon",
     "blender": (3, 0, 0),
     "category": "Object",
 }
@@ -19,18 +19,15 @@ class WeightedAutoSmooth(bpy.types.Operator):
         if obj != None and obj.type == 'MESH':
             # find if weighted normals modifier exists
             found  = False
-            for md in obj.modifiers:
-                if md.type == 'WEIGHTED_NORMAL':
-                    
-                    # remove modifier and shade flat
-                    modifier_to_remove = obj.modifiers.get("WeightedNormal")
-                    obj.modifiers.remove(modifier_to_remove)
-                    bpy.ops.object.shade_flat()
 
-                    found = True
-                    break
-            
-            if not found:
+            modifier_to_remove = obj.modifiers.get("WeightedNormal")
+
+            if modifier_to_remove != None:
+                # remove modifier and shade flat
+                modifier_to_remove = obj.modifiers.get("WeightedNormal")
+                obj.modifiers.remove(modifier_to_remove)
+                bpy.ops.object.shade_flat()
+            else:
                 # add weighted normals modifier with "keep sharp" and then shade autosmooth
                 bpy.ops.object.modifier_add(type='WEIGHTED_NORMAL')
                 bpy.context.object.modifiers["WeightedNormal"].keep_sharp = True
