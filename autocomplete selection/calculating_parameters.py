@@ -6,6 +6,9 @@ from gpu_extras.batch import batch_for_shader
 from struct import pack
 
 bmg = bmesh.from_edit_mesh(bpy.context.active_object.data)
+st = bpy.types.SpaceView3D
+handler = ""
+last_selection = ""
 
 class Autocomplete(bpy.types.Operator):
     bl_idname = "scene.autocomplete"
@@ -13,11 +16,8 @@ class Autocomplete(bpy.types.Operator):
     bl_description = "Toggles Weighted Normals modifier and smooth shading"
 
     def execute(self, context):
-
         
-
-        st = bpy.types.SpaceView3D
-        st.draw_handler_add(draw, (), 'WINDOW', 'POST_VIEW')
+        handler = st.draw_handler_add(draw, (), 'WINDOW', 'POST_VIEW')
 
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
@@ -27,18 +27,20 @@ class Autocomplete(bpy.types.Operator):
 
 
 def autocomplete():
+    # get obj data...
     obj = bpy.context.active_object
     bm = bmesh.from_edit_mesh(obj.data)
     bm.faces.ensure_lookup_table()
-    bmg = bm
+    bm.verts.ensure_lookup_table()
+    if not check_for_changes(bm):
+        return
 
     layer = bm.faces.layers.int.get("AutocompleteSelect")
     if layer == None:
         layer = bm.faces.layers.int.new("AutocompleteSelect")
-        bm.faces.ensure_lookup_table()
-    
-    print("Autocomplete Selection")
+    bm.faces.ensure_lookup_table()
 
+    # dict of parameters of selected faces
     parameters_faces = {
         "normal": [],
         "area": []
@@ -54,14 +56,18 @@ def autocomplete():
     print(parameters)
     print(diff)
     
+    # compare average parameters with all faces and set layer
     for face in bm.faces:
         if not face.select:
             if compare_parameters(face, parameters, diff):
                 face[layer] = 1
             else:
                 face[layer] = 0
+        else:
+            face[layer] = 0
 
     bm.faces.ensure_lookup_table()
+    bmg = bm
     return
 
 
@@ -131,18 +137,31 @@ def get_active_faces():
     except: pass
     return coords
 
-r, g, b, a = 1.0, 1.0, 0.0, 0.2
+
+def check_for_changes(bm):
+    new = str([(v.co, v.select) for v in bm.verts])
+    global last_selection
+    if new != last_selection:
+        last_selection = new
+        return True
+    return False
+
+
+r, g, b, a = 0.6, 0.6, 0.1, 1.0
 shader = gpu.shader.from_builtin("3D_UNIFORM_COLOR")
 
 def draw():
-    autocomplete()
+    try:
+        autocomplete()
 
-    bgl.glLineWidth(1)
-    batch = batch_for_shader(shader, 'TRIS', {"pos": get_active_faces()})
-    shader.bind()
-    color = shader.uniform_from_name("color")
-    shader.uniform_vector_float(color, pack("4f", r, g, b, a), 4)
-    batch.draw(shader)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
+        batch = batch_for_shader(shader, 'TRIS', {"pos": get_active_faces()})
+        shader.bind()
+        color = shader.uniform_from_name("color")
+        shader.uniform_vector_float(color, pack("4f", r, g, b, a), 4)
+        batch.draw(shader)
+    except:
+        bpy.types.SpaceView3D.draw_handler_remove(handler, 'WINDOW')
 
 
 addon_keymaps = []
@@ -156,10 +175,6 @@ def register():
         km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
         kmi = km.keymap_items.new(Autocomplete.bl_idname, type='SPACE', value='PRESS', alt=True)
         addon_keymaps.append((km, kmi))
-
-
-
-
     
 
 def unregister():
